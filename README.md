@@ -1,14 +1,14 @@
 # Momentix
 
-Realtime football match dashboard built with Phoenix LiveView. Focused on fast, fault-tolerant ingestion of API-Football data and clean UI updates via PubSub.
+Realtime football match dashboard built with Phoenix LiveView. Focused on fast, fault-tolerant ingestion of API-Football data from API-Football and clean UI updates via PubSub.
 
 ## System Overview
 
 - Elixir OTP app with a per-match supervision tree.
 - Processes per match: `MatchClockServer`, `ScoreServer`, `StatsServer`, `EventsServer`, `PlayerSupervisor` (dynamic), `PlayerServer` (per player).
-- Data fetchers use Finch + Req + ETS cache + retry/backoff.
+- Data fetchers use Finch + Req + ETS cache + retry/backoff with short TTLs.
 - Phoenix PubSub distributes updates; LiveView subscribes and renders.
-- UI: Tailwind + daisyUI cards/tabs/badges, ApexCharts/Chart.js via LiveView hooks, Heroicons.
+- UI: Tailwind components, LiveView hooks for momentum/possession, Heroicons.
 
 ### Supervision Tree (per match)
 
@@ -46,7 +46,7 @@ Momentix.Application
 - `Momentix.EventsServer` – polls event feed (goals, cards, subs), de-dupes, orders, and broadcasts.
 - `Momentix.PlayerSupervisor` – dynamic supervisor for players.
 - `Momentix.PlayerServer` – per-player ratings and metrics; receives events/stats and refreshes rating.
-- `Momentix.Api.Client` – Finch/HTTPoison wrapper with auth header, retry/backoff, rate-limit protection.
+- `Momentix.Api.Client` – Finch/Req wrapper with auth header, retry/backoff, rate-limit protection, field normalization for API-Football events/stats/score/players.
 - `Momentix.Cache` – ETS tables (named per match) for recent payloads; TTL managed via `:ets.update_counter` or `:ets.select_delete` sweep.
 
 ### Typed Data (examples)
@@ -161,47 +161,21 @@ end
 
 - `MomentixWeb.DashboardLive`
 
-  - subscribes to all match topics on mount; assigns `%MatchState{}` (clock, score, stats, events, players, momentum_series}`.
-  - uses `push_event/3` for chart updates (`momentum:update`, `possession:update`).
-  - handles `handle_info` from PubSub to update assigns and broadcast to components via `send_update`.
+  - Subscribes to all match topics on mount; starts per-match tree via `MatchSupervisor.start_match/2`.
+  - Tracks clock, score (with team names), stats, events, players, momentum series, possession.
+  - Uses `push_event/3` for chart updates (`momentum:update`, `possession:update`).
 
-- Components
-  - `MomentixWeb.ScoreboardComponent` – scoreline, clock, team badges.
-  - `MomentixWeb.StatsCardComponent` – cards for possession, shots, xG, corners.
-  - `MomentixWeb.EventFeedComponent` – scrollable feed of events with badges.
-  - `MomentixWeb.PlayerListComponent` – per-player rating, minute, cards; subscribes to player topics.
+- Components (see `lib/momentix_web/components/dashboard_components.ex`)
 
-### JS Hooks (Chart.js/ApexCharts)
+  - Scoreboard, momentum, possession, stat cards, event feed, player list (Heroicons used via `<.icon>`).
 
-```javascript
-let MomentumHook = {
-  mounted() {
-    this.chart = new ApexCharts(this.el, buildOptions())
-    this.chart.render()
-    this.handleEvent('momentum:update', ({ series }) =>
-      this.chart.updateSeries(series)
-    )
-  },
-  destroyed() {
-    this.chart?.destroy()
-  },
-}
-
-let PossessionHook = {
-  mounted() {
-    this.chart = new Chart(this.el, buildDoughnut())
-    this.handleEvent('possession:update', ({ home, away }) => {
-      this.chart.data.datasets[0].data = [home, away]
-      this.chart.update()
-    })
-  },
-}
-```
+- JS hooks (see `assets/js/app.js`)
+  - `MomentumChart` and `PossessionChart` render live textual summaries from pushed events.
 
 ## API Client and Caching
 
 - Configure Finch pool `:api_football` with TLS and timeouts.
-- `Client.fetch_live_matches(team_id)`, `fetch_events(match_id)`, `fetch_stats(match_id)`, `fetch_players(match_id)`.
+- `Client.fetch_live_matches(team_id)`, `fetch_events(match_id)`, `fetch_stats(match_id)`, `fetch_players(match_id)`, `fetch_score(match_id)`.
 - ETS cache keys: `{:events, match_id}`, `{:stats, match_id}`, `{:players, match_id}` with short TTL (5–10s) to soften rate limits.
 - Use exponential backoff on HTTP 429/5xx; jittered retries.
 - Map API-Football payloads into typed maps before broadcasting.
@@ -219,14 +193,5 @@ let PossessionHook = {
 
 ## UI Notes
 
-- Tailwind + daisyUI: use `card`, `tabs`, `badge`, `progress`, `alert` for events.
-- Heroicons for status (goal, card, sub, VAR).
-- Keep JS minimal; all state in LiveView assigns; hooks only for charts.
-
-## Next Steps
-
-1. `mix phx.new momentix --live` and move code into `lib/momentix` and `lib/momentix_web`.
-2. Add Finch to deps and configure in `application.ex`.
-3. Implement `MatchSupervisor` and one GenServer end-to-end (e.g., `EventsServer`) with PubSub wiring.
-4. Scaffold LiveView + components and wire sample data; integrate charts via hooks.
-5. Add ETS cache + retry logic; exercise with a sandbox API-Football key.
+- Tailwind components with badges/cards; Heroicons for status; charts driven by LiveView pushes.
+- Keep JS minimal; all state in LiveView assigns; hooks only for chart text summaries.
