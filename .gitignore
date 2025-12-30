@@ -40,3 +40,6 @@ npm-debug.log
 /.elixir_tools
 .DS_Store
 
+# Local environment files
+.env
+

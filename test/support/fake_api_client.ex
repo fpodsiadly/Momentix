@@ -3,7 +3,7 @@ defmodule Momentix.TestSupport.FakeApiClient do
   Lightweight in-memory client used to stub API-Football responses in tests.
   """
 
-  @keys [:events, :stats, :players, :score]
+  @keys [:events, :stats, :players, :score, :matches]
 
   def reset do
     Enum.each(@keys, &:persistent_term.erase({__MODULE__, &1}))
@@ -14,6 +14,9 @@ defmodule Momentix.TestSupport.FakeApiClient do
   def put_stats(stats), do: :persistent_term.put({__MODULE__, :stats}, stats)
   def put_players(players), do: :persistent_term.put({__MODULE__, :players}, players)
   def put_score(score), do: :persistent_term.put({__MODULE__, :score}, score)
+  def put_matches(matches), do: :persistent_term.put({__MODULE__, :matches}, matches)
+
+  def fetch_live_matches(_team_id, _opts \ []), do: {:ok, lookup(:matches, [])}
 
   def fetch_events(_match_id, _opts \\ []), do: {:ok, lookup(:events, [])}
 
