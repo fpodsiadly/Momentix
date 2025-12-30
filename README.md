@@ -6,7 +6,7 @@ Realtime football match dashboard built with Phoenix LiveView. Focused on fast, 
 
 - Elixir OTP app with a per-match supervision tree.
 - Processes per match: `MatchClockServer`, `ScoreServer`, `StatsServer`, `EventsServer`, `PlayerSupervisor` (dynamic), `PlayerServer` (per player).
-- Data fetchers use Finch (or HTTPoison) + ETS cache + retry/backoff.
+- Data fetchers use Finch + Req + ETS cache + retry/backoff.
 - Phoenix PubSub distributes updates; LiveView subscribes and renders.
 - UI: Tailwind + daisyUI cards/tabs/badges, ApexCharts/Chart.js via LiveView hooks, Heroicons.
 
@@ -205,6 +205,9 @@ let PossessionHook = {
 - ETS cache keys: `{:events, match_id}`, `{:stats, match_id}`, `{:players, match_id}` with short TTL (5–10s) to soften rate limits.
 - Use exponential backoff on HTTP 429/5xx; jittered retries.
 - Map API-Football payloads into typed maps before broadcasting.
+- Set environment variables (loaded in `config/runtime.exs`):
+  - `API_FOOTBALL_KEY` – required API key
+  - `API_FOOTBALL_BASE_URL` – optional, defaults to `https://v3.football.api-sports.io`
 
 ## Data Flow
 
